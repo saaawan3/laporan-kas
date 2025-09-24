@@ -3,40 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laporan Uang Kas</title>
+  <title>Laporan Kas Sekolah</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f6f9; }
-    .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    h2 { text-align: center; margin-bottom: 20px; }
-    .summary { display: flex; justify-content: space-around; margin-bottom: 20px; }
-    .card { padding: 15px; border-radius: 8px; color: white; flex: 1; margin: 5px; text-align: center; font-weight: bold; }
-    .income { background: #28a745; }
-    .expense { background: #dc3545; }
-    .balance { background: #007bff; }
-    input { padding: 8px; width: 100%; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 20px;
+      background: #f4f6f8;
+    }
+    .container {
+      max-width: 950px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h2 { text-align: center; margin-bottom: 20px; color: #333; }
+    .filter-box {
+      margin: 15px 0;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .filter-box input, .filter-box select {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 10px;
+    }
     table, th, td { border: 1px solid #ddd; }
-    th, td { padding: 8px; text-align: center; }
+    th, td { padding: 10px; text-align: center; }
     th { background: #007bff; color: white; }
-    tr:nth-child(even) { background: #f2f2f2; }
-    #error { color: red; text-align: center; margin-top: 15px; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    tr:hover { background: #f1f1f1; }
+    .saldo-box {
+      margin-top: 20px;
+      text-align: right;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .saldo-box span { color: #007bff; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>📊 Laporan Uang Kas</h2>
-
-    <!-- Ringkasan -->
-    <div class="summary">
-      <div class="card income">Total Pemasukan: Rp <span id="totalIncome">0</span></div>
-      <div class="card expense">Total Pengeluaran: Rp <span id="totalExpense">0</span></div>
-      <div class="card balance">Saldo Akhir: Rp <span id="balance">0</span></div>
-    </div>
+    <h2>📊 Laporan Uang Kas Sekolah</h2>
 
     <!-- Filter -->
-    <input type="text" id="filterInput" placeholder="🔍 Cari berdasarkan kategori/nama...">
+    <div class="filter-box">
+      <input type="text" id="filterInput" placeholder="🔎 Cari nama/kategori...">
+      <select id="filterType">
+        <option value="">Semua Jenis</option>
+        <option value="Pemasukan">Pemasukan</option>
+        <option value="Pengeluaran">Pengeluaran</option>
+      </select>
+    </div>
 
-    <!-- Tabel -->
+    <!-- Tabel Laporan -->
     <table id="dataTable">
       <thead>
         <tr>
@@ -50,77 +79,69 @@
       <tbody></tbody>
     </table>
 
-    <p id="error"></p>
+    <!-- Saldo -->
+    <div class="saldo-box">
+      Total Saldo: <span id="saldo">Rp 0</span>
+    </div>
   </div>
 
   <script>
     // 🔑 Ganti sesuai milikmu
-    const SHEET_ID = "1AYITN4fnOPilpR5XLmoNLiIQR1S3sJ1XA2f95gZqngs";
-    const SHEET_NAME = "Kas XII DKV"; // ganti sesuai nama sheet kamu
+    const SHEET_ID = "1AYITN4fnOPilpR5XLmoNLiIQR1S3sJ1XA2f95gZqngs"; 
+    const SHEET_NAME = "Kas XII DKV"; 
 
     const dataTable = document.getElementById("dataTable").querySelector("tbody");
     const filterInput = document.getElementById("filterInput");
-    const errorEl = document.getElementById("error");
-    const totalIncomeEl = document.getElementById("totalIncome");
-    const totalExpenseEl = document.getElementById("totalExpense");
-    const balanceEl = document.getElementById("balance");
+    const filterType = document.getElementById("filterType");
+    const saldoEl = document.getElementById("saldo");
 
-    // 📊 Ambil Data
+    // 📊 Ambil Data dari Google Sheets
     async function loadData() {
-      try {
-        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
-        const res = await fetch(url);
-        const text = await res.text();
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      const json = JSON.parse(text.substr(47).slice(0, -2));
 
-        // Parsing JSON dari Google Sheets
-        const json = JSON.parse(text.substr(47).slice(0, -2));
-        const rows = json.table.rows;
+      dataTable.innerHTML = "";
+      let totalSaldo = 0;
 
-        let totalIncome = 0;
-        let totalExpense = 0;
-        dataTable.innerHTML = "";
-
-        rows.forEach(row => {
-          const tr = document.createElement("tr");
-          const cells = row.c.map(cell => cell ? cell.v : "");
-
-          // isi tabel
-          cells.forEach((val, i) => {
-            const td = document.createElement("td");
-            if (i === 2 && val) { // kolom jumlah
-              td.innerText = "Rp " + parseInt(val).toLocaleString("id-ID");
-            } else {
-              td.innerText = val;
-            }
-            tr.appendChild(td);
-          });
-
-          // hitung total
-          if (cells[1] === "Pemasukan") totalIncome += parseInt(cells[2] || 0);
-          if (cells[1] === "Pengeluaran") totalExpense += parseInt(cells[2] || 0);
-
-          dataTable.appendChild(tr);
+      json.table.rows.forEach(row => {
+        const tr = document.createElement("tr");
+        row.c.forEach(cell => {
+          const td = document.createElement("td");
+          td.innerText = cell ? cell.v : "";
+          tr.appendChild(td);
         });
+        dataTable.appendChild(tr);
 
-        // update ringkasan
-        totalIncomeEl.innerText = totalIncome.toLocaleString("id-ID");
-        totalExpenseEl.innerText = totalExpense.toLocaleString("id-ID");
-        balanceEl.innerText = (totalIncome - totalExpense).toLocaleString("id-ID");
+        // Hitung saldo
+        const jenis = row.c[1] ? row.c[1].v : "";
+        const jumlah = row.c[2] ? parseInt(row.c[2].v) : 0;
+        if (jenis === "Pemasukan") totalSaldo += jumlah;
+        if (jenis === "Pengeluaran") totalSaldo -= jumlah;
+      });
 
-      } catch (err) {
-        errorEl.innerText = "❌ Gagal membaca data. Pastikan spreadsheet dibuka akses publik & nama sheet benar.";
-      }
+      saldoEl.innerText = "Rp " + totalSaldo.toLocaleString("id-ID");
+      applyFilter();
     }
 
     // 🔎 Filter Data
-    filterInput.addEventListener("keyup", () => {
-      const filter = filterInput.value.toLowerCase();
+    function applyFilter() {
+      const filterText = filterInput.value.toLowerCase();
+      const filterJenis = filterType.value;
       const rows = dataTable.querySelectorAll("tr");
+
       rows.forEach(row => {
         const kategori = row.cells[3].innerText.toLowerCase();
-        row.style.display = kategori.includes(filter) ? "" : "none";
+        const jenis = row.cells[1].innerText;
+        const matchText = kategori.includes(filterText);
+        const matchJenis = filterJenis === "" || jenis === filterJenis;
+        row.style.display = (matchText && matchJenis) ? "" : "none";
       });
-    });
+    }
+
+    filterInput.addEventListener("keyup", applyFilter);
+    filterType.addEventListener("change", applyFilter);
 
     // ⏲️ Load pertama
     loadData();
