@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan Uang Kas</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f6f9; }
+    .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    h2 { text-align: center; margin-bottom: 20px; }
+    .summary { display: flex; justify-content: space-around; margin-bottom: 20px; }
+    .card { padding: 15px; border-radius: 8px; color: white; flex: 1; margin: 5px; text-align: center; font-weight: bold; }
+    .income { background: #28a745; }
+    .expense { background: #dc3545; }
+    .balance { background: #007bff; }
+    input { padding: 8px; width: 100%; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table, th, td { border: 1px solid #ddd; }
+    th, td { padding: 8px; text-align: center; }
+    th { background: #007bff; color: white; }
+    tr:nth-child(even) { background: #f2f2f2; }
+    #error { color: red; text-align: center; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📊 Laporan Uang Kas</h2>
+
+    <!-- Ringkasan -->
+    <div class="summary">
+      <div class="card income">Total Pemasukan: Rp <span id="totalIncome">0</span></div>
+      <div class="card expense">Total Pengeluaran: Rp <span id="totalExpense">0</span></div>
+      <div class="card balance">Saldo Akhir: Rp <span id="balance">0</span></div>
+    </div>
+
+    <!-- Filter -->
+    <input type="text" id="filterInput" placeholder="🔍 Cari berdasarkan kategori/nama...">
+
+    <!-- Tabel -->
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Tanggal</th>
+          <th>Jenis</th>
+          <th>Jumlah</th>
+          <th>Kategori</th>
+          <th>Catatan</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <p id="error"></p>
+  </div>
+
+  <script>
+    // 🔑 Ganti sesuai milikmu
+    const SHEET_ID = "1AYITN4fnOPilpR5XLmoNLiIQR1S3sJ1XA2f95gZqngs";
+    const SHEET_NAME = "Kas XII DKV"; // ganti sesuai nama sheet kamu
+
+    const dataTable = document.getElementById("dataTable").querySelector("tbody");
+    const filterInput = document.getElementById("filterInput");
+    const errorEl = document.getElementById("error");
+    const totalIncomeEl = document.getElementById("totalIncome");
+    const totalExpenseEl = document.getElementById("totalExpense");
+    const balanceEl = document.getElementById("balance");
+
+    // 📊 Ambil Data
+    async function loadData() {
+      try {
+        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+        const res = await fetch(url);
+        const text = await res.text();
+
+        // Parsing JSON dari Google Sheets
+        const json = JSON.parse(text.substr(47).slice(0, -2));
+        const rows = json.table.rows;
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        dataTable.innerHTML = "";
+
+        rows.forEach(row => {
+          const tr = document.createElement("tr");
+          const cells = row.c.map(cell => cell ? cell.v : "");
+
+          // isi tabel
+          cells.forEach((val, i) => {
+            const td = document.createElement("td");
+            if (i === 2 && val) { // kolom jumlah
+              td.innerText = "Rp " + parseInt(val).toLocaleString("id-ID");
+            } else {
+              td.innerText = val;
+            }
+            tr.appendChild(td);
+          });
+
+          // hitung total
+          if (cells[1] === "Pemasukan") totalIncome += parseInt(cells[2] || 0);
+          if (cells[1] === "Pengeluaran") totalExpense += parseInt(cells[2] || 0);
+
+          dataTable.appendChild(tr);
+        });
+
+        // update ringkasan
+        totalIncomeEl.innerText = totalIncome.toLocaleString("id-ID");
+        totalExpenseEl.innerText = totalExpense.toLocaleString("id-ID");
+        balanceEl.innerText = (totalIncome - totalExpense).toLocaleString("id-ID");
+
+      } catch (err) {
+        errorEl.innerText = "❌ Gagal membaca data. Pastikan spreadsheet dibuka akses publik & nama sheet benar.";
+      }
+    }
+
+    // 🔎 Filter Data
+    filterInput.addEventListener("keyup", () => {
+      const filter = filterInput.value.toLowerCase();
+      const rows = dataTable.querySelectorAll("tr");
+      rows.forEach(row => {
+        const kategori = row.cells[3].innerText.toLowerCase();
+        row.style.display = kategori.includes(filter) ? "" : "none";
+      });
+    });
+
+    // ⏲️ Load pertama
+    loadData();
+  </script>
+</body>
+</html>
